@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+*.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Data
+data/
+*.pth
+*.onnx
+*.pb
+benchmarks/results/*.json
+benchmarks/results/*.csv
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Monitoring
+monitoring/prometheus_data/
+monitoring/grafana_data/
+
+# Model checkpoints
+checkpoints/
+models/*.pth
