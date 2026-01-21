@@ -116,7 +116,7 @@ fastinfer/
 ## 📈 Roadmap
 
 - [x] Phase 1: Baseline FastAPI server with ResNet-50
-- [ ] Phase 2: ONNX Runtime integration
+- [x] Phase 2: ONNX Runtime integration
 - [ ] Phase 3: INT8 Quantization
 - [ ] Phase 4: Dynamic batching implementation
 - [ ] Phase 5: Redis caching layer
