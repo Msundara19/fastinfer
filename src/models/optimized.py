@@ -57,13 +57,36 @@ class ONNXModel:
         if input_tensor.dtype != np.float32:
             input_tensor = input_tensor.astype(np.float32)
         
-        # Run inference
-        outputs = self.session.run(
-            [self.output_name],
-            {self.input_name: input_tensor}
-        )
+        # Ensure input has correct shape
+        if len(input_tensor.shape) == 3:
+            input_tensor = np.expand_dims(input_tensor, 0)
         
-        return outputs[0]
+        batch_size = input_tensor.shape[0]
+        
+        try:
+            # Run inference
+            outputs = self.session.run(
+                [self.output_name],
+                {self.input_name: input_tensor}
+            )
+            
+            result = outputs[0]
+            
+            # Handle different output shapes
+            # ONNX might return [batch, 1000] or [batch, 1000, 1, 1]
+            if len(result.shape) == 1:
+                result = result.reshape(1, -1)
+            elif len(result.shape) == 4:  # [batch, 1000, 1, 1]
+                result = result.reshape(batch_size, -1)
+            elif len(result.shape) == 2:  # [batch, 1000] - correct shape
+                pass
+            
+            return result
+            
+        except Exception as e:
+            print(f"❌ ONNX inference error with batch_size={batch_size}, input_shape={input_tensor.shape}")
+            print(f"   Error: {e}")
+            raise
     
     def get_model_info(self):
         """Get model metadata"""
