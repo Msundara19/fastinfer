@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from fastapi.responses import Response
 from src.models.optimized import ONNXModel
+from src.optimization.batching import DynamicBatcher
 import numpy as np
 import torch
 import json
@@ -27,32 +28,55 @@ with open("imagenet_classes.json", "r") as f:
 model_loader = ModelLoader(settings.MODEL_NAME)
 model = None
 preprocessor = ImagePreprocessor()
-# Global ONNX model instance
 onnx_model = None
+pytorch_batcher = None
+onnx_batcher = None
+
 
 @app.on_event("startup")
 async def startup_event():
-    """Load models on startup"""
-    global model, onnx_model
+    """Load models and start batchers on startup"""
+    global model, onnx_model, pytorch_batcher, onnx_batcher
     
     # Load PyTorch model
     model = model_loader.load_model()
     print(f"PyTorch model ready! Info: {model_loader.get_model_info()}")
     
+    # Initialize PyTorch batcher
+    pytorch_batcher = DynamicBatcher(
+        model=model,
+        max_batch_size=settings.BATCH_SIZE,
+        max_wait_ms=settings.MAX_BATCH_WAIT_MS,
+        use_onnx=False
+    )
+    await pytorch_batcher.start()
+    
     # Try to load ONNX model if it exists
     try:
         onnx_model = ONNXModel()
         print(f"ONNX model ready! Info: {onnx_model.get_model_info()}")
+        
+        # Initialize ONNX batcher
+        onnx_batcher = DynamicBatcher(
+            model=onnx_model,
+            max_batch_size=settings.BATCH_SIZE,
+            max_wait_ms=settings.MAX_BATCH_WAIT_MS,
+            use_onnx=True
+        )
+        await onnx_batcher.start()
     except FileNotFoundError:
         print("⚠️  ONNX model not found. Run: python scripts/convert_to_onnx.py")
         onnx_model = None
 
-@app.on_event("startup")
-async def startup_event():
-    """Load model on startup"""
-    global model
-    model = model_loader.load_model()
-    print(f"Server ready! Model info: {model_loader.get_model_info()}")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Stop batchers on shutdown"""
+    if pytorch_batcher:
+        await pytorch_batcher.stop()
+    if onnx_batcher:
+        await onnx_batcher.stop()
+
 
 @app.get("/")
 async def root():
@@ -63,9 +87,11 @@ async def root():
         "status": "healthy"
     }
 
+
 @app.get("/health")
 async def health():
     return {"status": "healthy", "model_loaded": model is not None}
+
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
@@ -108,6 +134,8 @@ async def predict(file: UploadFile = File(...)):
     except Exception as e:
         error_counter.inc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/predict/onnx")
 async def predict_onnx(file: UploadFile = File(...)):
     """ONNX-optimized prediction endpoint"""
@@ -158,12 +186,128 @@ async def predict_onnx(file: UploadFile = File(...)):
     except Exception as e:
         error_counter.inc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/predict/batched")
+async def predict_batched(file: UploadFile = File(...)):
+    """PyTorch prediction with dynamic batching"""
+    if pytorch_batcher is None:
+        raise HTTPException(status_code=503, detail="Batcher not initialized")
+    
+    try:
+        # Read image
+        image_bytes = await file.read()
+        
+        # Track inference time
+        start = time.time()
+        
+        # Preprocess
+        input_tensor = preprocessor.preprocess(image_bytes)
+        input_numpy = input_tensor.numpy()
+        
+        # Batched inference
+        outputs = await pytorch_batcher.predict(input_numpy)
+        
+        # Apply softmax
+        exp_outputs = np.exp(outputs[0] - np.max(outputs[0]))
+        probabilities = exp_outputs / exp_outputs.sum()
+        
+        # Get top prediction
+        class_idx = int(np.argmax(probabilities))
+        confidence = float(probabilities[class_idx])
+        predicted_class = IMAGENET_CLASSES[class_idx]
+        
+        latency_ms = (time.time() - start) * 1000
+        
+        # Update metrics
+        prediction_counter.inc()
+        prediction_latency.observe(latency_ms / 1000)
+        
+        return {
+            "class": predicted_class,
+            "confidence": confidence,
+            "latency_ms": round(latency_ms, 2),
+            "class_idx": class_idx,
+            "model": "pytorch_batched"
+        }
+    
+    except Exception as e:
+        error_counter.inc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/predict/batched/onnx")
+async def predict_batched_onnx(file: UploadFile = File(...)):
+    """ONNX prediction with dynamic batching"""
+    if onnx_batcher is None:
+        raise HTTPException(
+            status_code=503,
+            detail="ONNX batcher not initialized. Ensure ONNX model exists."
+        )
+    
+    try:
+        # Read image
+        image_bytes = await file.read()
+        
+        # Track inference time
+        start = time.time()
+        
+        # Preprocess
+        input_tensor = preprocessor.preprocess(image_bytes)
+        input_numpy = input_tensor.numpy()
+        
+        # Batched inference
+        outputs = await onnx_batcher.predict(input_numpy)
+        
+        # Apply softmax
+        exp_outputs = np.exp(outputs[0] - np.max(outputs[0]))
+        probabilities = exp_outputs / exp_outputs.sum()
+        
+        # Get top prediction
+        class_idx = int(np.argmax(probabilities))
+        confidence = float(probabilities[class_idx])
+        predicted_class = IMAGENET_CLASSES[class_idx]
+        
+        latency_ms = (time.time() - start) * 1000
+        
+        # Update metrics
+        prediction_counter.inc()
+        prediction_latency.observe(latency_ms / 1000)
+        
+        return {
+            "class": predicted_class,
+            "confidence": confidence,
+            "latency_ms": round(latency_ms, 2),
+            "class_idx": class_idx,
+            "model": "onnx_batched"
+        }
+    
+    except Exception as e:
+        error_counter.inc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/batch/stats")
+async def batch_stats():
+    """Get batching statistics"""
+    stats = {}
+    
+    if pytorch_batcher:
+        stats['pytorch'] = pytorch_batcher.get_stats()
+    
+    if onnx_batcher:
+        stats['onnx'] = onnx_batcher.get_stats()
+    
+    return stats
+
+
 @app.get("/metrics")
 async def metrics():
     """Prometheus metrics endpoint"""
     if settings.ENABLE_METRICS:
         return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
     return {"error": "Metrics disabled"}
+
 
 @app.get("/model/info")
 async def model_info():
