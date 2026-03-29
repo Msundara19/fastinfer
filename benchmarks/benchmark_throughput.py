@@ -90,9 +90,11 @@ async def run_benchmarks():
     print("=" * 70)
     
     endpoints = [
-        ("/predict", "PyTorch Baseline"),
-        ("/predict/onnx", "ONNX Optimized"),
-        ("/predict/batched/onnx", "ONNX + Batching")
+        ("/predict",                "PyTorch MPS (GPU baseline)"),
+        ("/predict/onnx",           "ONNX CoreML FP32"),
+        ("/predict/coreml",         "Direct CoreML FP16"),
+        ("/predict/batched",        "PyTorch MPS + Batching"),
+        ("/predict/batched/coreml", "CoreML FP16 + Static Batching"),
     ]
     
     results = []
