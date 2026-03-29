@@ -43,3 +43,11 @@ monitoring/grafana_data/
 # Model checkpoints
 checkpoints/
 models/*.pth
+
+# Converted model artifacts (regenerated via scripts)
+models/
+*.mlpackage
+*.mlmodel
+
+# Temp / scratch files
+*.data
