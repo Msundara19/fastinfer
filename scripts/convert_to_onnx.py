@@ -43,6 +43,16 @@ def convert_resnet50_to_onnx(output_path="models/resnet50.onnx"):
         }
     )
     
+    # Merge external data into a single self-contained file
+    # (required for CoreML execution provider)
+    data_file = Path(output_path + ".data")
+    if data_file.exists():
+        print("🔗 Merging external weights into single-file model...")
+        onnx_model = onnx.load(output_path, load_external_data=True)
+        onnx.save(onnx_model, output_path, save_as_external_data=False)
+        data_file.unlink()
+        print("✅ Weights merged into single ONNX file")
+
     # Verify ONNX model
     print("✅ Verifying ONNX model...")
     onnx_model = onnx.load(output_path)
