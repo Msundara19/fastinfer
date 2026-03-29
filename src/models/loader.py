@@ -4,10 +4,17 @@ from typing import Dict
 import time
 
 class ModelLoader:
-    def __init__(self, model_name: str = "resnet50"):
+    def __init__(self, model_name: str = "resnet50", force_cpu: bool = False):
         self.model_name = model_name
         self.model = None
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if force_cpu:
+            self.device = torch.device("cpu")
+        elif torch.cuda.is_available():
+            self.device = torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            self.device = torch.device("mps")
+        else:
+            self.device = torch.device("cpu")
         
     def load_model(self) -> torch.nn.Module:
         """Load pretrained ResNet-50 model"""
@@ -21,7 +28,15 @@ class ModelLoader:
         
         self.model = self.model.to(self.device)
         self.model.eval()
-        
+
+        # torch.compile reduces dispatch overhead on MPS; falls back silently if unsupported
+        if self.device.type == "mps":
+            try:
+                self.model = torch.compile(self.model, backend="aot_eager")
+                print("torch.compile enabled (aot_eager backend)")
+            except Exception as e:
+                print(f"torch.compile skipped: {e}")
+
         load_time = time.time() - start
         print(f"Model loaded in {load_time:.2f}s")
         return self.model

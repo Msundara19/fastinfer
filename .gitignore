@@ -45,7 +45,7 @@ checkpoints/
 models/*.pth
 
 # Converted model artifacts (regenerated via scripts)
-models/
+/models/
 *.mlpackage
 *.mlmodel
 
