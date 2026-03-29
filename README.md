@@ -1,144 +1,217 @@
 
-# FastInfer - Production ML Inference Optimizer
+# FastInfer
 
-> High-performance ML inference API achieving 5-10× speedup through systematic optimization
+A machine learning inference API that demonstrates systematic performance optimization on Apple Silicon — taking a standard PyTorch model and making it significantly faster through hardware-specific acceleration techniques.
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.6.0-red.svg)](https://pytorch.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109.0-green.svg)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## 🎯 Project Overview
+---
 
-FastInfer is a production-grade ML inference optimization system demonstrating measurable performance improvements through:
-- **ONNX Runtime** conversion for faster inference
-- **INT8 Quantization** for reduced memory footprint
-- **Dynamic Batching** for improved throughput
-- **Redis Caching** for repeated queries
-- **Prometheus Metrics** for observability
+## What This Project Does
 
-**Current Status:** Phase 1 Complete - Baseline established at 196ms latency
+FastInfer serves a ResNet-50 image classifier through multiple optimized backends and measures the real-world impact of each optimization. The goal was to understand — and demonstrate — the actual performance gains available on Apple Silicon hardware, and where the genuine bottlenecks lie.
 
-## 📊 Performance Metrics
-## 📊 Performance Metrics
+**Hardware:** Apple M5 (Neural Engine + GPU via Metal Performance Shaders)
 
-| Metric | Baseline | ONNX Optimized | Target | Status |
-|--------|----------|----------------|--------|--------|
-| Latency (mean) | 150.88ms | **74.56ms** | <80ms | ✅ **Achieved** |
-| Latency (P95) | 241.46ms | **87.85ms** | <100ms | ✅ **Achieved** |
-| Throughput | 0.46 req/s | TBD | 20-40 req/s | 🚧 In Progress |
-| Memory Usage | 32.6MB | ~32MB | <1GB | ✅ Excellent |
+---
 
-**Latest:** ONNX Runtime optimization - 1.92× speedup achieved! 🚀
+## Results
 
-## 🚀 Quick Start
+All measurements are taken against a PyTorch MPS (GPU) baseline to ensure a fair comparison. Each backend runs on accelerated hardware.
 
-### Prerequisites
+### Latency — How fast is a single prediction?
+
+| Backend | Median Latency | vs Baseline |
+|---------|---------------|-------------|
+| PyTorch MPS (baseline) | 16.2ms | — |
+| ONNX + CoreML FP32 | 10.1ms | **1.6× faster** |
+| Direct CoreML FP16 | 10.3ms | **1.6× faster** |
+
+Pure inference time (model only, no image processing): CoreML FP16 = **1.17ms**.
+The end-to-end latency is dominated by image preprocessing (~8.5ms), not the model itself — a finding that shaped the architecture decisions in this project.
+
+### Throughput — How many requests per second under load?
+
+Tested with 10 concurrent clients over 30 seconds, server running 4 worker processes.
+
+| Backend | Requests/sec | vs Single-Worker Baseline |
+|---------|-------------|--------------------------|
+| PyTorch MPS, 1 worker (original baseline) | 45.8 | — |
+| PyTorch MPS, 4 workers | 82.5 | **1.8×** |
+| CoreML FP16 + Static Batching, 4 workers | 104.4 | **2.3×** |
+| ONNX + CoreML FP32, 4 workers | 166.2 | *(see note below)* |
+
+> **On the ONNX number:** The 166 req/s figure is partially inflated by Redis cache hits when the benchmark repeatedly sends the same image. The CoreML Static Batching result (104 req/s) is the most representative real-world number as it bypasses the cache.
+
+---
+
+## What Was Built
+
+Each optimization layer was implemented, measured, and compared:
+
+- **ONNX Export + CoreML Execution Provider** — routes inference to the Apple Neural Engine (121 of 124 ops accelerated)
+- **Direct CoreML FP16 Conversion** — bypasses ONNX entirely for native half-precision inference
+- **Static Batch Models** — pre-compiled CoreML models at batch sizes 1/2/4/8, avoiding dynamic shape fallback to CPU
+- **Dynamic Request Batching** — asyncio queue that groups concurrent requests before inference
+- **Multi-Worker Serving** — multiple uvicorn processes, each with its own model instance
+- **Redis Response Caching** — identical requests served from cache
+- **INT8 Quantization** — ONNX INT8 for CPU-only deployments (CoreML does not support INT8 ops)
+- **Prometheus Metrics** — request counts, latency histograms, cache hit rates
+
+---
+
+## Key Findings
+
+**The Neural Engine is fast, but preprocessing is the real bottleneck.**
+After profiling, inference accounts for only ~1ms of a ~10ms request. PIL image decode and transforms take ~8.5ms. Optimizing the model backend has a ceiling unless preprocessing is also addressed.
+
+**Dynamic batching helps only with a single worker.**
+With multiple workers, requests are distributed across processes. Each worker's batcher receives too few concurrent requests to form meaningful batches, so the queue delay hurts more than batching helps. Static batch CoreML models outperform dynamic batching at scale.
+
+**INT8 quantization doesn't work on CoreML.**
+`ConvInteger` and `DynamicQuantizeLinear` ops are unsupported by the CoreML execution provider, routing the model to CPU. The INT8 path exists for non-Apple deployments only.
+
+---
+
+## Getting Started
+
+### Requirements
+
 - Python 3.11+
-- Virtual environment (venv or conda)
-- 4GB+ RAM
+- Apple Silicon Mac (M1 or later) for CoreML and Neural Engine acceleration
+- Redis (optional — required only if caching is enabled)
 
 ### Installation
 
-\`\`\`bash
-# Clone repository
+```bash
 git clone https://github.com/YOUR_USERNAME/fastinfer.git
 cd fastinfer
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: .\venv\Scripts\Activate.ps1
+python3.11 -m venv venv
+source venv/bin/activate
 
-# Install dependencies
 pip install -r requirements.txt
-\`\`\`
+```
 
-### Run Server
+### Convert Models
 
-\`\`\`bash
-uvicorn src.server:app --host 0.0.0.0 --port 8000
-\`\`\`
+Run once to generate the optimized model files:
 
-Visit http://localhost:8000/docs for interactive API documentation.
+```bash
+# PyTorch → ONNX
+python scripts/convert_to_onnx.py
 
-## 🧪 Usage
+# PyTorch → CoreML FP16 (batch sizes 1, 2, 4, 8)
+python scripts/convert_to_coreml.py
 
-### Health Check
-\`\`\`bash
-curl http://localhost:8000/health
-\`\`\`
+# ONNX → INT8 (optional, CPU deployments only)
+python scripts/quantize_model.py
+```
 
-### Image Classification
-\`\`\`bash
-curl -X POST "http://localhost:8000/predict" -F "file=@image.jpg"
-\`\`\`
+### Start the Server
 
-**Response:**
-\`\`\`json
+```bash
+# Single worker (development)
+python run.py
+
+# Multi-worker (production)
+python run.py --workers 4
+```
+
+The API will be available at `http://localhost:8000`. Interactive docs at `http://localhost:8000/docs`.
+
+---
+
+## API
+
+| Endpoint | Backend | Best For |
+|----------|---------|----------|
+| `POST /predict` | PyTorch MPS | Baseline / debugging |
+| `POST /predict/onnx` | ONNX + CoreML FP32 | Low latency, cache-friendly |
+| `POST /predict/coreml` | Direct CoreML FP16 | Lowest single-request latency |
+| `POST /predict/batched` | PyTorch MPS + Dynamic Batching | Single-worker high concurrency |
+| `POST /predict/batched/coreml` | CoreML FP16 + Static Batch | Best multi-worker throughput |
+| `POST /predict/quantized` | INT8 ONNX (CPU) | Non-Apple hardware |
+| `GET /cache/stats` | — | Redis hit/miss rates |
+| `GET /metrics` | — | Prometheus metrics |
+
+**Example:**
+
+```bash
+curl -X POST "http://localhost:8000/predict/coreml" -F "file=@image.jpg"
+```
+
+```json
 {
   "class": "golden_retriever",
-  "confidence": 0.8934,
-  "latency_ms": 196.5,
-  "class_idx": 207
+  "confidence": 0.89,
+  "latency_ms": 10.3,
+  "model": "coreml_fp16"
 }
-\`\`\`
+```
 
-## 🏗️ Project Structure
+---
 
-\`\`\`
+## Running Benchmarks
+
+```bash
+# Latency benchmark (50 sequential requests per backend)
+python benchmarks/compare_onnx.py
+
+# Throughput benchmark (10 concurrent clients, 30 seconds per backend)
+python benchmarks/benchmark_throughput.py
+```
+
+Make sure the server is running before executing benchmarks.
+
+---
+
+## Project Structure
+
+```
 fastinfer/
 ├── src/
-│   ├── server.py              # FastAPI application
-│   ├── config.py              # Configuration management
+│   ├── server.py                  # FastAPI app and all endpoints
+│   ├── config.py                  # Configuration and environment variables
 │   ├── models/
-│   │   └── loader.py          # Model loading utilities
-│   ├── utils/
-│   │   ├── preprocessing.py   # Image preprocessing
-│   │   └── metrics.py         # Prometheus metrics
-│   └── optimization/          # Optimization techniques (coming soon)
+│   │   ├── loader.py              # PyTorch model loading (MPS/CPU)
+│   │   ├── optimized.py           # ONNX and quantized model classes
+│   │   └── coreml_model.py        # CoreML model classes (FP16, static batch)
+│   ├── optimization/
+│   │   └── batching.py            # Dynamic request batcher
+│   └── utils/
+│       ├── preprocessing.py       # Image preprocessing pipeline
+│       ├── cache.py               # Redis async cache
+│       └── metrics.py             # Prometheus instrumentation
+├── scripts/
+│   ├── convert_to_onnx.py         # Export PyTorch model to ONNX
+│   ├── convert_to_coreml.py       # Convert to CoreML FP16
+│   └── quantize_model.py          # ONNX INT8 quantization
 ├── benchmarks/
-│   └── results/               # Benchmark results
-├── tests/                     # Unit tests (coming soon)
-├── requirements.txt
-└── README.md
-\`\`\`
+│   ├── compare_onnx.py            # Sequential latency comparison
+│   └── benchmark_throughput.py    # Concurrent throughput benchmark
+├── run.py                         # Server launcher (single / multi-worker)
+└── requirements.txt
+```
 
-## 🛠️ Tech Stack
+---
 
-- **Framework:** FastAPI
-- **ML Library:** PyTorch 2.6.0
-- **Model:** ResNet-50 (ImageNet pretrained)
-- **Optimization:** ONNX Runtime, Quantization
-- **Monitoring:** Prometheus + Grafana
-- **Testing:** Locust (load testing)
-- **Deployment:** Docker, Railway/Modal
+## Tech Stack
 
-## 📈 Roadmap
+| Layer | Technology |
+|-------|-----------|
+| API Framework | FastAPI + uvicorn |
+| ML Runtime | PyTorch 2.6.0, ONNX Runtime, coremltools |
+| Hardware Acceleration | Apple Neural Engine (CoreML), Apple GPU (MPS) |
+| Caching | Redis + aioredis |
+| Monitoring | Prometheus |
+| Benchmarking | aiohttp async load testing |
 
-- [x] Phase 1: Baseline FastAPI server with ResNet-50
-- [x] Phase 2: ONNX Runtime integration
-- [ ] Phase 3: INT8 Quantization
-- [ ] Phase 4: Dynamic batching implementation
-- [ ] Phase 5: Redis caching layer
-- [ ] Phase 6: Production deployment
+---
 
-## 🎓 Learning Outcomes
+## License
 
-This project demonstrates:
-- Production ML system design
-- Performance optimization techniques
-- API development with FastAPI
-- Model conversion and quantization
-- Load testing and benchmarking
-- Containerization and deployment
-
-## 📝 License
-
-MIT License - see LICENSE file for details
-
-
-## 🙏 Acknowledgments
-
-- PyTorch team for pretrained models
-- FastAPI for excellent documentation
-
+MIT — see [LICENSE](LICENSE) for details.
