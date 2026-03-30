@@ -83,8 +83,8 @@ async def startup_event():
             )
             await coreml_batcher.start()
             print(f"CoreML batch model ready: {coreml_batch_model.get_model_info()}")
-        except FileNotFoundError:
-            print("⚠️  CoreML models not found. Run: python scripts/convert_to_coreml.py")
+        except (FileNotFoundError, RuntimeError) as e:
+            print(f"⚠️  CoreML unavailable: {e}")
         coreml_model = None
         coreml_batcher = None
 
