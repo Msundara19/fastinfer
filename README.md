@@ -78,50 +78,51 @@ With multiple workers, requests are distributed across processes. Each worker's 
 
 ## Getting Started
 
-### Requirements
+### Option 1 — Docker (recommended)
 
-- Python 3.11+
-- Apple Silicon Mac (M1 or later) for CoreML and Neural Engine acceleration
-- Redis (optional — required only if caching is enabled)
-
-### Installation
+Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/fastinfer.git
+git clone https://github.com/Msundara19/fastinfer.git
+cd fastinfer
+docker compose up
+```
+
+That's it. On first run, Docker will install dependencies, convert the PyTorch model to ONNX, and start the server alongside Redis. The API is available at `http://localhost:8000` and interactive docs at `http://localhost:8000/docs`.
+
+> **Note:** Docker runs on Linux, so the CoreML and Apple Neural Engine backends are not available in this mode. The `/predict` (PyTorch CPU) and `/predict/onnx` (ONNX CPU) endpoints are fully functional. The CoreML performance results in this README were measured natively on Apple Silicon.
+
+---
+
+### Option 2 — Native (Apple Silicon, full performance)
+
+Requires Python 3.11+, Apple Silicon Mac (M1 or later), and Redis if caching is enabled.
+
+```bash
+git clone https://github.com/Msundara19/fastinfer.git
 cd fastinfer
 
 python3.11 -m venv venv
 source venv/bin/activate
-
 pip install -r requirements.txt
+pip install coremltools  # macOS only
 ```
 
-### Convert Models
-
-Run once to generate the optimized model files:
+Convert models (one-time):
 
 ```bash
-# PyTorch → ONNX
-python scripts/convert_to_onnx.py
-
-# PyTorch → CoreML FP16 (batch sizes 1, 2, 4, 8)
-python scripts/convert_to_coreml.py
-
-# ONNX → INT8 (optional, CPU deployments only)
-python scripts/quantize_model.py
+python scripts/convert_to_onnx.py       # PyTorch → ONNX
+python scripts/convert_to_coreml.py     # PyTorch → CoreML FP16 (b1/b2/b4/b8)
+python scripts/quantize_model.py        # ONNX → INT8 (optional)
 ```
 
-### Start the Server
+Start the server:
 
 ```bash
-# Single worker (development)
-python run.py
-
-# Multi-worker (production)
 python run.py --workers 4
 ```
 
-The API will be available at `http://localhost:8000`. Interactive docs at `http://localhost:8000/docs`.
+The API will be available at `http://localhost:8000`.
 
 ---
 
