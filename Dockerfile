@@ -8,7 +8,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libjpeg-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies first (layer cached unless requirements change)
+# Install torch CPU-only first — own layer so it stays cached across rebuilds
+# CPU-only is ~200MB vs ~800MB for the default CUDA build
+RUN pip install --no-cache-dir \
+    torch==2.6.0 \
+    torchvision==0.21.0 \
+    --index-url https://download.pytorch.org/whl/cpu
+
+# Install remaining dependencies (cached separately from torch)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
