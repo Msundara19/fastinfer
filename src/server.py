@@ -2,7 +2,11 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from fastapi.responses import Response
 from src.models.optimized import ONNXModel, QuantizedONNXModel
-from src.models.coreml_model import CoreMLModel, StaticBatchCoreMLModel
+try:
+    from src.models.coreml_model import CoreMLModel, StaticBatchCoreMLModel
+    _COREML_AVAILABLE = True
+except (ImportError, RuntimeError):
+    _COREML_AVAILABLE = False
 from src.optimization.batching import DynamicBatcher
 import numpy as np
 import torch
@@ -63,21 +67,24 @@ async def startup_event():
         print("⚠️  ONNX model not found. Run: python scripts/convert_to_onnx.py")
         onnx_model = None
 
-    # Load direct CoreML models (FP16, static batch)
-    try:
-        coreml_model = CoreMLModel()
-        print(f"CoreML single model ready: {coreml_model.get_model_info()}")
-        coreml_batch_model = StaticBatchCoreMLModel()
-        coreml_batcher = DynamicBatcher(
-            model=coreml_batch_model,
-            max_batch_size=settings.BATCH_SIZE,
-            max_wait_ms=settings.MAX_BATCH_WAIT_MS,
-            use_onnx=True,  # uses model.predict(numpy_array) interface
-        )
-        await coreml_batcher.start()
-        print(f"CoreML batch model ready: {coreml_batch_model.get_model_info()}")
-    except FileNotFoundError:
-        print("⚠️  CoreML models not found. Run: python scripts/convert_to_coreml.py")
+    # Load direct CoreML models (FP16, static batch) — macOS/Apple Silicon only
+    if not _COREML_AVAILABLE:
+        print("ℹ️  CoreML not available on this platform — skipping CoreML endpoints")
+    else:
+        try:
+            coreml_model = CoreMLModel()
+            print(f"CoreML single model ready: {coreml_model.get_model_info()}")
+            coreml_batch_model = StaticBatchCoreMLModel()
+            coreml_batcher = DynamicBatcher(
+                model=coreml_batch_model,
+                max_batch_size=settings.BATCH_SIZE,
+                max_wait_ms=settings.MAX_BATCH_WAIT_MS,
+                use_onnx=True,  # uses model.predict(numpy_array) interface
+            )
+            await coreml_batcher.start()
+            print(f"CoreML batch model ready: {coreml_batch_model.get_model_info()}")
+        except FileNotFoundError:
+            print("⚠️  CoreML models not found. Run: python scripts/convert_to_coreml.py")
         coreml_model = None
         coreml_batcher = None
 
