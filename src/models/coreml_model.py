@@ -19,8 +19,13 @@ Input contract (after running convert_to_coreml.py):
 
 import time
 import numpy as np
-import coremltools as ct
 from pathlib import Path
+
+try:
+    import coremltools as ct
+    _COREML_AVAILABLE = True
+except ImportError:
+    _COREML_AVAILABLE = False
 
 
 # Static batch sizes available — must match compiled .mlpackage files
@@ -31,6 +36,8 @@ class CoreMLModel:
     """Single-image CoreML inference (FP16, Neural Engine)."""
 
     def __init__(self, model_path: str = "models/resnet50_b1.mlpackage"):
+        if not _COREML_AVAILABLE:
+            raise RuntimeError("coremltools is not available on this platform (macOS only)")
         path = Path(model_path)
         if not path.exists():
             raise FileNotFoundError(
@@ -76,8 +83,10 @@ class StaticBatchCoreMLModel:
     """
 
     def __init__(self, model_dir: str = "models"):
-        self._models: dict[int, ct.models.MLModel] = {}
-        self._input_names: dict[int, str] = {}
+        if not _COREML_AVAILABLE:
+            raise RuntimeError("coremltools is not available on this platform (macOS only)")
+        self._models: dict = {}
+        self._input_names: dict = {}
 
         print("Loading static-batch CoreML models...")
         start = time.time()
