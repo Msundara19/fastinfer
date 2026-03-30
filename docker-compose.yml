@@ -10,6 +10,7 @@ services:
       - WORKERS=2
     volumes:
       - models:/app/models
+      - torch_cache:/root/.cache/torch
     depends_on:
       redis:
         condition: service_healthy
@@ -25,3 +26,4 @@ services:
 
 volumes:
   models:
+  torch_cache:
