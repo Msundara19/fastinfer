@@ -31,3 +31,5 @@ httpx
 python-dotenv
 requests
 tqdm
+aiofiles
+groq
