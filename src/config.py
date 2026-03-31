@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     
     # Monitoring
     ENABLE_METRICS: bool = True
+
+    # Groq LLM analysis
+    GROQ_API_KEY: str = ""
     
     class Config:
         env_file = ".env"
