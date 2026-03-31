@@ -16,23 +16,33 @@ from typing import Optional
 
 
 class PredictionCache:
-    def __init__(self, host: str, port: int, ttl: int):
+    def __init__(self, host: str, port: int, ttl: int, password: str = "", url: str = ""):
         self.ttl = ttl
         self._client: Optional[aioredis.Redis] = None
         self._host = host
         self._port = port
+        self._password = password
+        self._url = url
         self.hits = 0
         self.misses = 0
 
     async def connect(self):
-        self._client = aioredis.Redis(
-            host=self._host,
-            port=self._port,
-            decode_responses=True,
-            socket_connect_timeout=2,
-        )
-        await self._client.ping()
-        print(f"Redis cache connected ({self._host}:{self._port}, TTL={self.ttl}s)")
+        if self._url:
+            self._client = aioredis.from_url(
+                self._url, decode_responses=True, socket_connect_timeout=2
+            )
+            await self._client.ping()
+            print(f"Redis cache connected via URL (TTL={self.ttl}s)")
+        else:
+            self._client = aioredis.Redis(
+                host=self._host,
+                port=self._port,
+                password=self._password or None,
+                decode_responses=True,
+                socket_connect_timeout=2,
+            )
+            await self._client.ping()
+            print(f"Redis cache connected ({self._host}:{self._port}, TTL={self.ttl}s)")
 
     async def close(self):
         if self._client:
