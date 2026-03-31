@@ -7,6 +7,9 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109.0-green.svg)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+<img width="1454" height="775" alt="image" src="https://github.com/user-attachments/assets/82c025df-2310-4d62-b919-0ef367189346" />
+
+
 **[Live Demo →](https://fastinfer-production.up.railway.app)**
 
 ---
