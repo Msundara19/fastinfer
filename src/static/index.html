@@ -169,7 +169,10 @@
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ── Results card ── */
-    #results-card { display: none; }
+    #results-card .results-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 180px; color: #bfdbfe; text-align: center; }
+    #results-card .results-placeholder svg { width: 40px; height: 40px; margin-bottom: 12px; opacity: 0.4; }
+    #results-card .results-placeholder p { font-size: 0.82rem; font-weight: 500; }
+    #results-card .results-content { display: none; }
 
     .result-class {
       font-size: 2rem; font-weight: 800; color: #1e3a8a;
@@ -364,23 +367,30 @@
     <div class="card" id="results-card">
       <div class="card-title">Prediction Result</div>
 
-      <div class="result-class" id="result-class">—</div>
-      <div class="result-model-tag" id="result-model">—</div>
-
-      <div class="metric-row">
-        <div class="metric-header">
-          <span class="metric-name">Confidence</span>
-          <span class="metric-value" id="conf-value">—</span>
-        </div>
-        <div class="bar-track"><div class="bar-fill" id="conf-bar"></div></div>
+      <div class="results-placeholder" id="results-placeholder">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
+        <p>Upload an image and<br/>click Analyze to see results</p>
       </div>
 
-      <div class="metric-row">
-        <div class="metric-header">
-          <span class="metric-name">Latency</span>
-          <span class="metric-value" id="lat-value">—</span>
+      <div class="results-content" id="results-content">
+        <div class="result-class" id="result-class"></div>
+        <div class="result-model-tag" id="result-model"></div>
+
+        <div class="metric-row">
+          <div class="metric-header">
+            <span class="metric-name">Confidence</span>
+            <span class="metric-value" id="conf-value"></span>
+          </div>
+          <div class="bar-track"><div class="bar-fill" id="conf-bar"></div></div>
         </div>
-        <div class="bar-track"><div class="bar-fill latency" id="lat-bar"></div></div>
+
+        <div class="metric-row">
+          <div class="metric-header">
+            <span class="metric-name">Latency</span>
+            <span class="metric-value" id="lat-value"></span>
+          </div>
+          <div class="bar-track"><div class="bar-fill latency" id="lat-bar"></div></div>
+        </div>
       </div>
     </div>
 
@@ -521,7 +531,8 @@
       btn.innerHTML = '<span class="spinner"></span>Analyzing...';
 
       // Hide previous results
-      document.getElementById('results-card').style.display = 'none';
+      document.getElementById('results-content').style.display = 'none';
+      document.getElementById('results-placeholder').style.display = 'flex';
       document.getElementById('analysis-section').style.display = 'none';
 
       try {
@@ -554,9 +565,10 @@
       document.getElementById('conf-value').textContent = `${conf}%`;
       document.getElementById('lat-value').textContent = `${latency}ms`;
 
-      const resultsCard = document.getElementById('results-card');
-      resultsCard.style.display = 'block';
-      resultsCard.classList.add('fade-in');
+      document.getElementById('results-placeholder').style.display = 'none';
+      const content = document.getElementById('results-content');
+      content.style.display = 'block';
+      content.classList.add('fade-in');
 
       // Animate bars
       setTimeout(() => {
