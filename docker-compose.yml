@@ -8,6 +8,7 @@ services:
       - REDIS_PORT=6379
       - ENABLE_CACHE=true
       - WORKERS=2
+      - GROQ_API_KEY=${GROQ_API_KEY}
     volumes:
       - models:/app/models
       - torch_cache:/root/.cache/torch
