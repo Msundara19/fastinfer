@@ -13,8 +13,10 @@ class Settings(BaseSettings):
     MAX_BATCH_WAIT_MS: int = 10
     
     # Cache
+    REDIS_URL: str = ""          # Takes priority if set (Railway provides this)
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
+    REDIS_PASSWORD: str = ""
     CACHE_TTL: int = 3600
     ENABLE_CACHE: bool = False
     
