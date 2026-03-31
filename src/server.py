@@ -94,7 +94,13 @@ async def startup_event():
 
     # Connect to Redis cache if enabled
     if settings.ENABLE_CACHE:
-        cache = PredictionCache(settings.REDIS_HOST, settings.REDIS_PORT, settings.CACHE_TTL)
+        cache = PredictionCache(
+            host=settings.REDIS_HOST,
+            port=settings.REDIS_PORT,
+            ttl=settings.CACHE_TTL,
+            password=settings.REDIS_PASSWORD,
+            url=settings.REDIS_URL,
+        )
         try:
             await cache.connect()
         except Exception as e:
