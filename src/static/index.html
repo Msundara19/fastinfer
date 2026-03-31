@@ -89,13 +89,15 @@
 
     /* ── Main layout ── */
     .main {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
+      display: flex;
+      justify-content: center;
       gap: 24px;
-      max-width: 1000px;
+      flex-wrap: wrap;
+      max-width: 1040px;
       margin: 48px auto;
       padding: 0 24px;
     }
+    .main .card { flex: 0 0 460px; min-width: 0; }
 
     .card {
       background: rgba(255,255,255,0.85);
@@ -241,30 +243,41 @@
     .dots span:nth-child(3) { animation-delay: 0.4s; }
     @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
 
-    /* ── Benchmarks ── */
-    .benchmarks {
+    /* ── Live Comparison ── */
+    .comparison {
       max-width: 1000px; margin: 0 auto 64px; padding: 0 24px;
     }
-    .benchmarks-title {
+    .comparison-title {
       font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 1.2px; color: #93c5fd; margin-bottom: 20px;
-      text-align: center;
+      letter-spacing: 1.2px; color: #93c5fd; margin-bottom: 20px; text-align: center;
     }
-    .bench-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .bench-card {
+    .comparison-card {
       background: rgba(255,255,255,0.85); border: 1px solid rgba(59,130,246,0.13);
-      border-radius: 14px; padding: 22px;
+      border-radius: 16px; padding: 28px;
       box-shadow: 0 4px 24px rgba(37,99,235,0.06);
     }
-    .bench-card-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #93c5fd; margin-bottom: 16px; }
-    .bench-row { margin-bottom: 14px; }
-    .bench-row:last-child { margin-bottom: 0; }
-    .bench-row-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
-    .bench-backend { font-size: 0.78rem; font-weight: 600; color: #1e3a8a; }
-    .bench-val { font-size: 0.78rem; font-weight: 700; color: #2563eb; }
-    .bench-bar-track { height: 6px; background: #eff6ff; border-radius: 8px; overflow: hidden; }
-    .bench-bar { height: 100%; border-radius: 8px; background: linear-gradient(90deg, #93c5fd, #2563eb); }
-    .bench-note { font-size: 0.68rem; color: #93c5fd; font-weight: 500; margin-top: 14px; }
+    .comparison-placeholder {
+      text-align: center; padding: 32px; color: #bfdbfe;
+      font-size: 0.85rem; font-weight: 500;
+    }
+    .compare-grid {
+      display: grid; grid-template-columns: 1fr auto 1fr; gap: 20px; align-items: center;
+    }
+    .compare-col { padding: 20px; border-radius: 12px; background: #f8fbff; border: 1px solid #e0eeff; }
+    .compare-col.winner { background: #eff6ff; border-color: #bfdbfe; }
+    .compare-backend { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #93c5fd; margin-bottom: 8px; }
+    .compare-class { font-size: 1.1rem; font-weight: 700; color: #1e3a8a; margin-bottom: 12px; text-transform: capitalize; }
+    .compare-latency { font-size: 1.6rem; font-weight: 800; color: #2563eb; }
+    .compare-latency small { font-size: 0.75rem; font-weight: 500; color: #93c5fd; }
+    .compare-conf { font-size: 0.75rem; color: #3b82f6; margin-top: 4px; }
+    .compare-vs { text-align: center; font-size: 0.75rem; font-weight: 700; color: #93c5fd; }
+    .speedup-row { margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0eeff; }
+    .speedup-label { display: flex; justify-content: space-between; margin-bottom: 8px; }
+    .speedup-text { font-size: 0.78rem; font-weight: 600; color: #1e3a8a; }
+    .speedup-val { font-size: 0.78rem; font-weight: 700; color: #2563eb; }
+    .speedup-track { height: 8px; background: #e0eeff; border-radius: 8px; overflow: hidden; display: flex; gap: 4px; }
+    .speedup-pytorch { height: 100%; background: #93c5fd; border-radius: 8px; transition: width 0.8s cubic-bezier(0.4,0,0.2,1); }
+    .speedup-onnx { height: 100%; background: linear-gradient(90deg, #3b82f6, #2563eb); border-radius: 8px; transition: width 0.8s cubic-bezier(0.4,0,0.2,1); }
 
     /* ── Footer ── */
     footer {
@@ -279,8 +292,8 @@
     @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
     @media (max-width: 700px) {
-      .main { grid-template-columns: 1fr; max-width: 520px; }
-      .bench-grid { grid-template-columns: 1fr; }
+      .main .card { flex: 0 0 100%; }
+      .compare-grid { grid-template-columns: 1fr; }
       .hero h1 { font-size: 1.9rem; }
       header { padding: 16px 20px; }
       .stats-strip { flex-wrap: wrap; }
@@ -415,65 +428,40 @@
     </div>
   </section>
 
-  <!-- Benchmark section -->
-  <section class="benchmarks">
-    <div class="benchmarks-title">Performance Benchmarks · Apple M5</div>
-    <div class="bench-grid">
-
-      <div class="bench-card">
-        <div class="bench-card-title">Latency — 50 sequential requests</div>
-
-        <div class="bench-row">
-          <div class="bench-row-header">
-            <span class="bench-backend">PyTorch MPS (baseline)</span>
-            <span class="bench-val">16.2ms</span>
-          </div>
-          <div class="bench-bar-track"><div class="bench-bar" style="width:100%"></div></div>
-        </div>
-        <div class="bench-row">
-          <div class="bench-row-header">
-            <span class="bench-backend">ONNX + CoreML FP32</span>
-            <span class="bench-val">10.1ms</span>
-          </div>
-          <div class="bench-bar-track"><div class="bench-bar" style="width:62%"></div></div>
-        </div>
-        <div class="bench-row">
-          <div class="bench-row-header">
-            <span class="bench-backend">Direct CoreML FP16 ✦</span>
-            <span class="bench-val">10.3ms</span>
-          </div>
-          <div class="bench-bar-track"><div class="bench-bar" style="width:64%"></div></div>
-        </div>
-        <div class="bench-note">✦ Apple Silicon only · Pure inference: 1.17ms</div>
+  <!-- Live Comparison -->
+  <section class="comparison">
+    <div class="comparison-title">Live Backend Comparison · This Image</div>
+    <div class="comparison-card">
+      <div id="comparison-placeholder" class="comparison-placeholder">
+        Upload an image and click Analyze to see a live PyTorch vs ONNX comparison
       </div>
-
-      <div class="bench-card">
-        <div class="bench-card-title">Throughput — 10 concurrent, 30s</div>
-
-        <div class="bench-row">
-          <div class="bench-row-header">
-            <span class="bench-backend">PyTorch MPS · 1 worker</span>
-            <span class="bench-val">45.8 req/s</span>
+      <div id="comparison-results" style="display:none">
+        <div class="compare-grid">
+          <div class="compare-col" id="pytorch-col">
+            <div class="compare-backend">PyTorch CPU · Baseline</div>
+            <div class="compare-class" id="cmp-pytorch-class">—</div>
+            <div class="compare-latency" id="cmp-pytorch-lat">—<small>ms</small></div>
+            <div class="compare-conf" id="cmp-pytorch-conf">—</div>
           </div>
-          <div class="bench-bar-track"><div class="bench-bar" style="width:44%"></div></div>
-        </div>
-        <div class="bench-row">
-          <div class="bench-row-header">
-            <span class="bench-backend">PyTorch MPS · 4 workers</span>
-            <span class="bench-val">82.5 req/s</span>
+          <div class="compare-vs">VS</div>
+          <div class="compare-col winner" id="onnx-col">
+            <div class="compare-backend">ONNX Runtime · Optimized</div>
+            <div class="compare-class" id="cmp-onnx-class">—</div>
+            <div class="compare-latency" id="cmp-onnx-lat">—<small>ms</small></div>
+            <div class="compare-conf" id="cmp-onnx-conf">—</div>
           </div>
-          <div class="bench-bar-track"><div class="bench-bar" style="width:79%"></div></div>
         </div>
-        <div class="bench-row">
-          <div class="bench-row-header">
-            <span class="bench-backend">CoreML Static Batch ✦</span>
-            <span class="bench-val">104 req/s</span>
+        <div class="speedup-row">
+          <div class="speedup-label">
+            <span class="speedup-text" id="speedup-text">Relative latency</span>
+            <span class="speedup-val" id="speedup-badge">—</span>
           </div>
-          <div class="bench-bar-track"><div class="bench-bar" style="width:100%"></div></div>
+          <div class="speedup-track">
+            <div class="speedup-onnx" id="speedup-onnx-bar" style="width:0%"></div>
+            <div class="speedup-pytorch" id="speedup-pytorch-bar" style="width:0%"></div>
+          </div>
         </div>
-        <div class="bench-note">✦ Apple Silicon only · Best honest non-cached result</div>
       </div>
-
     </div>
   </section>
 
@@ -530,21 +518,29 @@
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner"></span>Analyzing...';
 
-      // Hide previous results
+      // Reset UI
       document.getElementById('results-content').style.display = 'none';
       document.getElementById('results-placeholder').style.display = 'flex';
       document.getElementById('analysis-section').style.display = 'none';
+      document.getElementById('comparison-placeholder').style.display = 'block';
+      document.getElementById('comparison-results').style.display = 'none';
 
       try {
-        const formData = new FormData();
-        formData.append('file', selectedFile);
+        // Run selected backend for main result AND both backends for comparison — in parallel
+        const makeForm = () => { const f = new FormData(); f.append('file', selectedFile); return f; };
 
-        const endpoint = endpointMap[selectedBackend];
-        const res = await fetch(endpoint, { method: 'POST', body: formData });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+        const [mainRes, pytorchRes, onnxRes] = await Promise.all([
+          fetch(endpointMap[selectedBackend], { method: 'POST', body: makeForm() }),
+          fetch('/predict',      { method: 'POST', body: makeForm() }),
+          fetch('/predict/onnx', { method: 'POST', body: makeForm() }),
+        ]);
+
+        const data = await mainRes.json();
+        const pytorchData = await pytorchRes.json();
+        const onnxData    = await onnxRes.json();
 
         showResults(data);
+        showComparison(pytorchData, onnxData);
         fetchAnalysis(data);
       } catch (err) {
         alert('Prediction failed: ' + err.message);
@@ -552,6 +548,35 @@
         btn.disabled = false;
         btn.innerHTML = 'Analyze Image';
       }
+    }
+
+    function showComparison(pytorch, onnx) {
+      const pLat = pytorch.latency_ms || 0;
+      const oLat = onnx.latency_ms || 0;
+      const max  = Math.max(pLat, oLat);
+
+      document.getElementById('cmp-pytorch-class').textContent = (pytorch.class || '').replace(/_/g, ' ');
+      document.getElementById('cmp-pytorch-lat').innerHTML   = `${pLat}<small>ms</small>`;
+      document.getElementById('cmp-pytorch-conf').textContent = `${Math.round((pytorch.confidence||0)*100)}% confidence`;
+
+      document.getElementById('cmp-onnx-class').textContent  = (onnx.class || '').replace(/_/g, ' ');
+      document.getElementById('cmp-onnx-lat').innerHTML      = `${oLat}<small>ms</small>`;
+      document.getElementById('cmp-onnx-conf').textContent   = `${Math.round((onnx.confidence||0)*100)}% confidence`;
+
+      const faster = pLat > oLat ? 'ONNX' : 'PyTorch';
+      const ratio  = pLat > 0 ? (pLat / oLat).toFixed(1) : '—';
+      document.getElementById('speedup-text').textContent  = `ONNX is ${ratio}× faster on this image`;
+      document.getElementById('speedup-badge').textContent = `${ratio}×`;
+
+      document.getElementById('comparison-placeholder').style.display = 'none';
+      const results = document.getElementById('comparison-results');
+      results.style.display = 'block';
+      results.classList.add('fade-in');
+
+      setTimeout(() => {
+        document.getElementById('speedup-onnx-bar').style.width    = `${(oLat / max) * 100}%`;
+        document.getElementById('speedup-pytorch-bar').style.width = `${(pLat / max) * 100}%`;
+      }, 50);
     }
 
     function showResults(data) {
