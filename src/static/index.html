@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FastInfer — ML Inference Optimization</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Montserrat', sans-serif;
+      background: linear-gradient(145deg, #ffffff 0%, #eff6ff 45%, #dbeafe 100%);
+      min-height: 100vh;
+      color: #1e3a8a;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 48px;
+      border-bottom: 1px solid rgba(59,130,246,0.12);
+      background: rgba(255,255,255,0.7);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .logo-icon svg { width: 20px; height: 20px; fill: white; }
+    .logo-text { font-size: 1.3rem; font-weight: 700; color: #1e3a8a; letter-spacing: -0.3px; }
+    .logo-badge {
+      font-size: 0.65rem; font-weight: 600; background: #eff6ff;
+      color: #2563eb; border: 1px solid #bfdbfe;
+      padding: 2px 8px; border-radius: 20px; letter-spacing: 0.5px;
+    }
+    header a {
+      font-size: 0.8rem; font-weight: 600; color: #2563eb;
+      text-decoration: none; padding: 8px 16px;
+      border: 1.5px solid #bfdbfe; border-radius: 8px;
+      transition: all 0.2s;
+    }
+    header a:hover { background: #eff6ff; }
+
+    /* ── Hero ── */
+    .hero {
+      text-align: center;
+      padding: 64px 24px 48px;
+    }
+    .hero-tag {
+      display: inline-block; font-size: 0.72rem; font-weight: 700;
+      letter-spacing: 1.5px; text-transform: uppercase;
+      color: #2563eb; background: #eff6ff;
+      border: 1px solid #bfdbfe; border-radius: 20px;
+      padding: 4px 14px; margin-bottom: 20px;
+    }
+    .hero h1 {
+      font-size: 2.8rem; font-weight: 800; line-height: 1.15;
+      color: #1e3a8a; letter-spacing: -1px; margin-bottom: 16px;
+    }
+    .hero h1 span { color: #2563eb; }
+    .hero p {
+      font-size: 1rem; font-weight: 400; color: #3b82f6;
+      max-width: 540px; margin: 0 auto; line-height: 1.7;
+    }
+
+    /* ── Stats strip ── */
+    .stats-strip {
+      display: flex; justify-content: center; gap: 0;
+      max-width: 640px; margin: 36px auto 0;
+      background: white; border-radius: 14px;
+      border: 1px solid rgba(59,130,246,0.15);
+      overflow: hidden; box-shadow: 0 4px 24px rgba(37,99,235,0.07);
+    }
+    .stat-item {
+      flex: 1; padding: 18px 20px; text-align: center;
+      border-right: 1px solid rgba(59,130,246,0.1);
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-value { font-size: 1.5rem; font-weight: 800; color: #1e3a8a; }
+    .stat-label { font-size: 0.68rem; font-weight: 600; color: #93c5fd; text-transform: uppercase; letter-spacing: 0.8px; margin-top: 3px; }
+
+    /* ── Main layout ── */
+    .main {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      max-width: 1000px;
+      margin: 48px auto;
+      padding: 0 24px;
+    }
+
+    .card {
+      background: rgba(255,255,255,0.85);
+      border: 1px solid rgba(59,130,246,0.13);
+      border-radius: 16px;
+      padding: 28px;
+      box-shadow: 0 4px 24px rgba(37,99,235,0.06);
+    }
+    .card-title {
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1.2px; color: #93c5fd; margin-bottom: 20px;
+    }
+
+    /* ── Upload area ── */
+    .upload-zone {
+      border: 2px dashed #bfdbfe; border-radius: 12px;
+      padding: 36px 20px; text-align: center; cursor: pointer;
+      transition: all 0.2s; position: relative;
+      background: #f8fbff;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: #2563eb; background: #eff6ff;
+    }
+    .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+    .upload-icon { font-size: 2.2rem; margin-bottom: 10px; }
+    .upload-zone p { font-size: 0.82rem; color: #3b82f6; font-weight: 500; }
+    .upload-zone span { font-size: 0.72rem; color: #93c5fd; display: block; margin-top: 4px; }
+
+    #preview-wrap { display: none; margin-top: 16px; }
+    #preview-wrap img {
+      width: 100%; max-height: 200px; object-fit: cover;
+      border-radius: 10px; border: 1px solid #bfdbfe;
+    }
+    .preview-name {
+      font-size: 0.72rem; color: #3b82f6; margin-top: 8px;
+      font-weight: 500; text-align: center;
+    }
+
+    /* ── Backend toggle ── */
+    .backend-section { margin-top: 22px; }
+    .backend-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #93c5fd; margin-bottom: 10px; }
+    .backend-options { display: flex; gap: 10px; }
+    .backend-btn {
+      flex: 1; padding: 10px; border-radius: 10px; border: 1.5px solid #bfdbfe;
+      background: white; color: #3b82f6; font-family: 'Montserrat', sans-serif;
+      font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+      text-align: center;
+    }
+    .backend-btn.active {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      border-color: #1d4ed8; color: white;
+    }
+    .backend-btn small { display: block; font-size: 0.62rem; font-weight: 500; opacity: 0.75; margin-top: 2px; }
+
+    /* ── Predict button ── */
+    #predict-btn {
+      width: 100%; margin-top: 20px; padding: 14px;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: white; border: none; border-radius: 12px;
+      font-family: 'Montserrat', sans-serif; font-size: 0.9rem; font-weight: 700;
+      cursor: pointer; transition: all 0.2s; letter-spacing: 0.3px;
+    }
+    #predict-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(37,99,235,0.35); }
+    #predict-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    #predict-btn .spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.4); border-top-color: white;
+      border-radius: 50%; animation: spin 0.7s linear infinite;
+      vertical-align: middle; margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Results card ── */
+    #results-card { display: none; }
+
+    .result-class {
+      font-size: 2rem; font-weight: 800; color: #1e3a8a;
+      line-height: 1.1; margin-bottom: 4px; text-transform: capitalize;
+    }
+    .result-class span { color: #2563eb; }
+
+    .result-model-tag {
+      display: inline-block; font-size: 0.65rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.8px;
+      background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe;
+      padding: 3px 10px; border-radius: 20px; margin-bottom: 24px;
+    }
+
+    /* Confidence bar */
+    .metric-row { margin-bottom: 18px; }
+    .metric-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 7px;
+    }
+    .metric-name { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #93c5fd; }
+    .metric-value { font-size: 0.9rem; font-weight: 700; color: #1e3a8a; }
+    .bar-track {
+      height: 7px; background: #eff6ff; border-radius: 10px; overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%; border-radius: 10px;
+      background: linear-gradient(90deg, #3b82f6, #2563eb);
+      width: 0; transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+    }
+    .bar-fill.latency { background: linear-gradient(90deg, #93c5fd, #3b82f6); }
+
+    /* ── AI Analysis ── */
+    #analysis-section {
+      max-width: 1000px; margin: 0 auto 32px; padding: 0 24px;
+      display: none;
+    }
+    .analysis-card {
+      background: rgba(255,255,255,0.85);
+      border: 1px solid rgba(59,130,246,0.13);
+      border-radius: 16px; padding: 28px;
+      box-shadow: 0 4px 24px rgba(37,99,235,0.06);
+    }
+    .analysis-header {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
+    }
+    .analysis-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.9rem;
+    }
+    .analysis-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #93c5fd; }
+    .analysis-subtitle { font-size: 0.75rem; font-weight: 500; color: #3b82f6; }
+    #analysis-text {
+      font-size: 0.9rem; font-weight: 400; color: #1e3a8a;
+      line-height: 1.8; min-height: 48px;
+    }
+    .analysis-loading { display: flex; align-items: center; gap: 10px; color: #93c5fd; font-size: 0.82rem; font-weight: 500; }
+    .dots span {
+      display: inline-block; width: 6px; height: 6px;
+      background: #93c5fd; border-radius: 50%; margin: 0 2px;
+      animation: bounce 1.2s infinite;
+    }
+    .dots span:nth-child(2) { animation-delay: 0.2s; }
+    .dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
+
+    /* ── Benchmarks ── */
+    .benchmarks {
+      max-width: 1000px; margin: 0 auto 64px; padding: 0 24px;
+    }
+    .benchmarks-title {
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1.2px; color: #93c5fd; margin-bottom: 20px;
+      text-align: center;
+    }
+    .bench-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .bench-card {
+      background: rgba(255,255,255,0.85); border: 1px solid rgba(59,130,246,0.13);
+      border-radius: 14px; padding: 22px;
+      box-shadow: 0 4px 24px rgba(37,99,235,0.06);
+    }
+    .bench-card-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #93c5fd; margin-bottom: 16px; }
+    .bench-row { margin-bottom: 14px; }
+    .bench-row:last-child { margin-bottom: 0; }
+    .bench-row-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .bench-backend { font-size: 0.78rem; font-weight: 600; color: #1e3a8a; }
+    .bench-val { font-size: 0.78rem; font-weight: 700; color: #2563eb; }
+    .bench-bar-track { height: 6px; background: #eff6ff; border-radius: 8px; overflow: hidden; }
+    .bench-bar { height: 100%; border-radius: 8px; background: linear-gradient(90deg, #93c5fd, #2563eb); }
+    .bench-note { font-size: 0.68rem; color: #93c5fd; font-weight: 500; margin-top: 14px; }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center; padding: 28px;
+      border-top: 1px solid rgba(59,130,246,0.1);
+      font-size: 0.72rem; color: #93c5fd; font-weight: 500;
+    }
+    footer a { color: #3b82f6; text-decoration: none; font-weight: 600; }
+
+    /* ── Fade in ── */
+    .fade-in { animation: fadeIn 0.4s ease forwards; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    @media (max-width: 700px) {
+      .main { grid-template-columns: 1fr; }
+      .bench-grid { grid-template-columns: 1fr; }
+      .hero h1 { font-size: 1.9rem; }
+      header { padding: 16px 20px; }
+      .stats-strip { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      </div>
+      <span class="logo-text">FastInfer</span>
+      <span class="logo-badge">APPLE SILICON</span>
+    </div>
+    <a href="https://github.com/Msundara19/fastinfer" target="_blank">View on GitHub →</a>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-tag">ML Inference Optimization</div>
+    <h1>Faster predictions.<br /><span>Measurable results.</span></h1>
+    <p>FastInfer takes a standard ResNet-50 model and optimizes it through ONNX export, CoreML acceleration, static batching, and multi-worker serving — with every gain benchmarked honestly.</p>
+
+    <div class="stats-strip">
+      <div class="stat-item">
+        <div class="stat-value">1.6×</div>
+        <div class="stat-label">Latency Gain</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">2.3×</div>
+        <div class="stat-label">Throughput Gain</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">1.17ms</div>
+        <div class="stat-label">CoreML Inference</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">104</div>
+        <div class="stat-label">Req/s Peak</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main: Upload + Results -->
+  <section class="main">
+
+    <!-- Upload -->
+    <div class="card">
+      <div class="card-title">Try it live</div>
+
+      <div class="upload-zone" id="upload-zone">
+        <input type="file" id="file-input" accept="image/*" />
+        <div class="upload-icon">📷</div>
+        <p>Drop an image or click to upload</p>
+        <span>JPG, PNG, WEBP · any size</span>
+      </div>
+
+      <div id="preview-wrap">
+        <img id="preview-img" src="" alt="Preview" />
+        <div class="preview-name" id="preview-name"></div>
+      </div>
+
+      <div class="backend-section">
+        <div class="backend-label">Backend</div>
+        <div class="backend-options">
+          <button class="backend-btn" data-backend="pytorch" onclick="selectBackend(this)">
+            PyTorch CPU
+            <small>Baseline</small>
+          </button>
+          <button class="backend-btn active" data-backend="onnx" onclick="selectBackend(this)">
+            ONNX Runtime
+            <small>Optimized</small>
+          </button>
+        </div>
+      </div>
+
+      <button id="predict-btn" onclick="runPrediction()">Analyze Image</button>
+    </div>
+
+    <!-- Results -->
+    <div class="card" id="results-card">
+      <div class="card-title">Prediction Result</div>
+
+      <div class="result-class" id="result-class">—</div>
+      <div class="result-model-tag" id="result-model">—</div>
+
+      <div class="metric-row">
+        <div class="metric-header">
+          <span class="metric-name">Confidence</span>
+          <span class="metric-value" id="conf-value">—</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" id="conf-bar"></div></div>
+      </div>
+
+      <div class="metric-row">
+        <div class="metric-header">
+          <span class="metric-name">Latency</span>
+          <span class="metric-value" id="lat-value">—</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill latency" id="lat-bar"></div></div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- AI Analysis -->
+  <section id="analysis-section">
+    <div class="analysis-card">
+      <div class="analysis-header">
+        <div class="analysis-icon">✦</div>
+        <div>
+          <div class="analysis-title">AI Analysis</div>
+          <div class="analysis-subtitle">Powered by Groq · Llama 3</div>
+        </div>
+      </div>
+      <div id="analysis-text">
+        <div class="analysis-loading">
+          <div class="dots"><span></span><span></span><span></span></div>
+          Generating analysis...
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Benchmark section -->
+  <section class="benchmarks">
+    <div class="benchmarks-title">Performance Benchmarks · Apple M5</div>
+    <div class="bench-grid">
+
+      <div class="bench-card">
+        <div class="bench-card-title">Latency — 50 sequential requests</div>
+
+        <div class="bench-row">
+          <div class="bench-row-header">
+            <span class="bench-backend">PyTorch MPS (baseline)</span>
+            <span class="bench-val">16.2ms</span>
+          </div>
+          <div class="bench-bar-track"><div class="bench-bar" style="width:100%"></div></div>
+        </div>
+        <div class="bench-row">
+          <div class="bench-row-header">
+            <span class="bench-backend">ONNX + CoreML FP32</span>
+            <span class="bench-val">10.1ms</span>
+          </div>
+          <div class="bench-bar-track"><div class="bench-bar" style="width:62%"></div></div>
+        </div>
+        <div class="bench-row">
+          <div class="bench-row-header">
+            <span class="bench-backend">Direct CoreML FP16 ✦</span>
+            <span class="bench-val">10.3ms</span>
+          </div>
+          <div class="bench-bar-track"><div class="bench-bar" style="width:64%"></div></div>
+        </div>
+        <div class="bench-note">✦ Apple Silicon only · Pure inference: 1.17ms</div>
+      </div>
+
+      <div class="bench-card">
+        <div class="bench-card-title">Throughput — 10 concurrent, 30s</div>
+
+        <div class="bench-row">
+          <div class="bench-row-header">
+            <span class="bench-backend">PyTorch MPS · 1 worker</span>
+            <span class="bench-val">45.8 req/s</span>
+          </div>
+          <div class="bench-bar-track"><div class="bench-bar" style="width:44%"></div></div>
+        </div>
+        <div class="bench-row">
+          <div class="bench-row-header">
+            <span class="bench-backend">PyTorch MPS · 4 workers</span>
+            <span class="bench-val">82.5 req/s</span>
+          </div>
+          <div class="bench-bar-track"><div class="bench-bar" style="width:79%"></div></div>
+        </div>
+        <div class="bench-row">
+          <div class="bench-row-header">
+            <span class="bench-backend">CoreML Static Batch ✦</span>
+            <span class="bench-val">104 req/s</span>
+          </div>
+          <div class="bench-bar-track"><div class="bench-bar" style="width:100%"></div></div>
+        </div>
+        <div class="bench-note">✦ Apple Silicon only · Best honest non-cached result</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    Built by Meenakshi Sridharan Sundaram ·
+    <a href="https://github.com/Msundara19/fastinfer" target="_blank">GitHub</a>
+    · ResNet-50 on Apple M5
+  </footer>
+
+  <script>
+    let selectedBackend = 'onnx';
+    let selectedFile = null;
+
+    const endpointMap = { pytorch: '/predict', onnx: '/predict/onnx' };
+    const backendLabels = { pytorch: 'PyTorch CPU', onnx: 'ONNX Runtime' };
+
+    function selectBackend(btn) {
+      document.querySelectorAll('.backend-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedBackend = btn.dataset.backend;
+    }
+
+    // Upload handling
+    const fileInput = document.getElementById('file-input');
+    const uploadZone = document.getElementById('upload-zone');
+
+    fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+
+    uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+    uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+    uploadZone.addEventListener('drop', e => {
+      e.preventDefault();
+      uploadZone.classList.remove('drag-over');
+      handleFile(e.dataTransfer.files[0]);
+    });
+
+    function handleFile(file) {
+      if (!file) return;
+      selectedFile = file;
+      const reader = new FileReader();
+      reader.onload = e => {
+        document.getElementById('preview-img').src = e.target.result;
+        document.getElementById('preview-name').textContent = file.name;
+        document.getElementById('preview-wrap').style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function runPrediction() {
+      if (!selectedFile) { alert('Please upload an image first.'); return; }
+
+      const btn = document.getElementById('predict-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Analyzing...';
+
+      // Hide previous results
+      document.getElementById('results-card').style.display = 'none';
+      document.getElementById('analysis-section').style.display = 'none';
+
+      try {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+
+        const endpoint = endpointMap[selectedBackend];
+        const res = await fetch(endpoint, { method: 'POST', body: formData });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        showResults(data);
+        fetchAnalysis(data);
+      } catch (err) {
+        alert('Prediction failed: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Analyze Image';
+      }
+    }
+
+    function showResults(data) {
+      const className = (data.class || '').replace(/_/g, ' ');
+      const conf = Math.round((data.confidence || 0) * 100);
+      const latency = data.latency_ms || 0;
+      const maxLatency = 300;
+
+      document.getElementById('result-class').innerHTML = `<span>${className}</span>`;
+      document.getElementById('result-model').textContent = backendLabels[selectedBackend];
+      document.getElementById('conf-value').textContent = `${conf}%`;
+      document.getElementById('lat-value').textContent = `${latency}ms`;
+
+      const resultsCard = document.getElementById('results-card');
+      resultsCard.style.display = 'block';
+      resultsCard.classList.add('fade-in');
+
+      // Animate bars
+      setTimeout(() => {
+        document.getElementById('conf-bar').style.width = `${conf}%`;
+        document.getElementById('lat-bar').style.width = `${Math.min((latency / maxLatency) * 100, 100)}%`;
+      }, 50);
+    }
+
+    async function fetchAnalysis(data) {
+      const section = document.getElementById('analysis-section');
+      const textEl = document.getElementById('analysis-text');
+
+      section.style.display = 'block';
+      section.classList.add('fade-in');
+      textEl.innerHTML = `<div class="analysis-loading"><div class="dots"><span></span><span></span><span></span></div> Generating analysis...</div>`;
+
+      try {
+        const res = await fetch('/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            class_name: data.class,
+            confidence: data.confidence,
+            latency_ms: data.latency_ms,
+            model: backendLabels[selectedBackend]
+          })
+        });
+        if (!res.ok) throw new Error('Analysis unavailable');
+        const result = await res.json();
+        textEl.textContent = result.analysis;
+      } catch {
+        textEl.textContent = 'AI analysis unavailable. Add a GROQ_API_KEY to enable this feature.';
+      }
+    }
+  </script>
+
+</body>
+</html>
