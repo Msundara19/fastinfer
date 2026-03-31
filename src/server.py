@@ -1,6 +1,8 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, Response
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
-from fastapi.responses import Response
+from pydantic import BaseModel
 from src.models.optimized import ONNXModel, QuantizedONNXModel
 try:
     from src.models.coreml_model import CoreMLModel, StaticBatchCoreMLModel
@@ -17,12 +19,14 @@ from src.config import get_settings
 from src.models.loader import ModelLoader
 from src.utils.preprocessing import ImagePreprocessor
 from src.utils.cache import PredictionCache
+from src.utils.groq_analysis import analyze_prediction
 from src.utils.metrics import (
     prediction_counter, prediction_latency, error_counter, track_time
 )
 
 # Initialize
 app = FastAPI(title="FastInfer", version="0.1.0")
+app.mount("/static", StaticFiles(directory="src/static"), name="static")
 settings = get_settings()
 
 # Load ImageNet labels
@@ -118,6 +122,11 @@ async def shutdown_event():
 
 
 @app.get("/")
+async def dashboard():
+    return FileResponse("src/static/index.html")
+
+
+@app.get("/api/info")
 async def root():
     return {
         "service": "FastInfer",
@@ -125,6 +134,27 @@ async def root():
         "model": settings.MODEL_NAME,
         "status": "healthy"
     }
+
+
+class AnalyzeRequest(BaseModel):
+    class_name: str
+    confidence: float
+    latency_ms: float
+    model: str
+
+
+@app.post("/analyze")
+async def analyze(req: AnalyzeRequest):
+    """Groq LLM analysis of a prediction result"""
+    analysis = await analyze_prediction(
+        class_name=req.class_name,
+        confidence=req.confidence,
+        latency_ms=req.latency_ms,
+        model=req.model
+    )
+    if analysis is None:
+        return {"analysis": "Add a GROQ_API_KEY environment variable to enable AI analysis."}
+    return {"analysis": analysis}
 
 
 @app.get("/health")
