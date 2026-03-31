@@ -8,5 +8,5 @@ if [ ! -f "models/resnet50.onnx" ]; then
     echo "Model conversion complete."
 fi
 
-echo "Starting FastInfer server with ${WORKERS:-2} workers..."
-exec python run.py --workers "${WORKERS:-2}"
+echo "Starting FastInfer server with ${WORKERS:-1} workers on port ${PORT:-8000}..."
+exec python run.py --workers "${WORKERS:-1}" --port "${PORT:-8000}"
