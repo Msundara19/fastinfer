@@ -14,6 +14,30 @@
 
 ---
 
+## Why I Built This
+
+Every existing ML inference tool I evaluated fell into one of two camps: **too generic** or **too black-box.**
+
+TorchServe, BentoML, and Ray Serve are production-grade serving frameworks — but they abstract away the hardware. You point them at a model, they serve it, and you have no idea what's actually running underneath or how much performance you're leaving on the table. NVIDIA Triton is the gold standard for GPU clusters, but it's designed for data-center H100s, not the laptop chip that most practitioners actually develop on. Hugging Face TGI is excellent for LLMs but purpose-built for one task. None of these tools answer the question that mattered to me: **given a specific piece of hardware, how do you systematically find its ceiling?**
+
+On the Apple Silicon side, coremltools documentation exists, ANE (Apple Neural Engine) routing is documented, and MPS is well-supported in PyTorch — but nobody had put it all together in one place, measured every layer of the stack honestly, and published what the real bottleneck actually was.
+
+**So I built it myself.**
+
+### What's different about FastInfer
+
+| What exists | The gap FastInfer fills |
+|-------------|------------------------|
+| TorchServe / BentoML — generic serving, hardware-agnostic | Fully hardware-aware: every optimization targets Apple Silicon specifically (ANE, MPS, CoreML, static batch compilation) |
+| NVIDIA Triton — best-in-class for GPU data centers | Designed for Apple Silicon — the hardware 100M+ developers actually have |
+| "ONNX is faster" blog posts — single benchmark, no context | Multi-backend comparison with honest methodology: same image, same hardware, all backends measured simultaneously |
+| Tutorials that stop at model export | End-to-end: model → API → caching → monitoring → deployed production service |
+| Optimization content that avoids uncomfortable findings | Honest reporting of what didn't work (dynamic batching hurts with multi-worker, INT8 silently falls back to CPU, preprocessing dominates latency — not the model) |
+
+The key insight this project surfaces — and that virtually no inference tutorial discusses — is that **preprocessing is the real bottleneck, not inference.** CoreML FP16 inference takes 1.17ms. The full request takes 10ms. PIL image decoding and normalization account for 8.5ms of that. No model optimization touches this. Until you profile the full pipeline, you're optimizing the wrong thing.
+
+---
+
 ## The Problem
 
 Running machine learning models in production is slow by default. A standard PyTorch model makes no use of the specialized hardware sitting right on the chip — the Apple Neural Engine, half-precision compute, or hardware-level batching. Most inference services just ship the model as-is and call it done.
